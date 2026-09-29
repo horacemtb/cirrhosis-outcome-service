@@ -21,6 +21,9 @@ packages = [{ include = "cirrhosis_service", from = "src" }]
 [tool.poetry.group.dev.dependencies]
 pytest = ">=7.4,<9.0"
 httpx = ">=0.27,<0.29"
+black = "^26.5.1"
+flake8 = "^7.4.1"
+pre-commit = "^4.6.2"
 
 [build-system]
 requires = ["poetry-core>=2.0,<3.0"]
@@ -28,3 +31,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 addopts = '--basetemp=.pytest_cache/tmp'
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]

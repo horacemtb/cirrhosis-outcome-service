@@ -1,0 +1,16 @@
+repos:
+  - repo: local
+    hooks:
+      - id: black
+        name: Black
+        entry: poetry run black
+        language: system
+        types: [python]
+        files: ^(src|tests)/
+
+      - id: flake8
+        name: Flake8
+        entry: poetry run flake8
+        language: system
+        types: [python]
+        files: ^(src|tests)/

@@ -30,7 +30,7 @@ def test_invalid_requests_return_422(model_path, record, monkeypatch):
         response = client.post(
             "/predict",
             content='{"Bilirubin": 1e309}',
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
         assert response.status_code == 422
 

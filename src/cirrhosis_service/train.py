@@ -42,14 +42,16 @@ def make_pipeline() -> Pipeline:
         bootstrap=True,
         max_samples=0.6095011330566877,
         random_state=RANDOM_STATE,
-        n_jobs=-1
+        n_jobs=-1,
     )
 
-    return Pipeline([
-        ("preprocess", make_preprocessor()),
-        ("sampler", RandomUnderSampler(random_state=RANDOM_STATE)),
-        ("rf", forest)
-    ])
+    return Pipeline(
+        [
+            ("preprocess", make_preprocessor()),
+            ("sampler", RandomUnderSampler(random_state=RANDOM_STATE)),
+            ("rf", forest),
+        ]
+    )
 
 
 def train(data_path: str | Path, output_dir: str | Path) -> dict:
@@ -74,19 +76,23 @@ def train(data_path: str | Path, output_dir: str | Path) -> dict:
         "precision": float(precision_score(y_test, predictions, zero_division=0)),
         "recall": float(recall_score(y_test, predictions, zero_division=0)),
         "f1": float(f1_score(y_test, predictions, zero_division=0)),
-        "confusion_matrix": confusion_matrix(y_test, predictions, labels=[0, 1]).tolist(),
+        "confusion_matrix": confusion_matrix(
+            y_test, predictions, labels=[0, 1]
+        ).tolist(),
         "class_order": [0, 1],
         "train_rows": len(y_train),
         "test_rows": len(y_test),
         "random_state": RANDOM_STATE,
-        "threshold": THRESHOLD
+        "threshold": THRESHOLD,
     }
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     model = {"pipeline": pipeline, "threshold": THRESHOLD}
     joblib.dump(model, output_dir / "model.joblib")
-    (output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
+    (output_dir / "metrics.json").write_text(
+        json.dumps(metrics, indent=2) + "\n", encoding="utf-8"
+    )
     logging.info("Saved model and metrics to %s.", output_dir)
 
     return metrics

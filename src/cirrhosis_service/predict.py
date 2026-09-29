@@ -28,7 +28,7 @@ def predict_record(model: dict, record: dict | PatientData) -> dict:
         "predicted_class": predicted_class,
         "predicted_status": CLASS_LABELS[predicted_class],
         "probability_d": probability,
-        "threshold": threshold
+        "threshold": threshold,
     }
 
 

@@ -56,3 +56,15 @@ poetry run pytest -q
 ```
 
 Тесты не требуют обучающего CSV или готовой модели.
+
+## Проверка качества кода
+
+```powershell
+poetry run black src tests
+poetry run flake8 src tests
+poetry run pre-commit install
+poetry run pre-commit run --all-files
+```
+
+Black форматирует код, Flake8 проверяет стиль и ошибки.
+После установки pre-commit проверки выполняются перед каждым коммитом.

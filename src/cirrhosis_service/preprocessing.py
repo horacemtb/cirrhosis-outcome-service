@@ -38,12 +38,20 @@ CATEGORIES = {
     "Ascites": ["N", "Y"],
     "Hepatomegaly": ["N", "Y"],
     "Spiders": ["N", "Y"],
-    "Edema": ["N", "S", "Y"]
+    "Edema": ["N", "S", "Y"],
 }
 
 NUMERIC_FEATURES = [
-    "Age", "Bilirubin", "Cholesterol", "Albumin", "Copper",
-    "Alk_Phos", "SGOT", "Tryglicerides", "Platelets", "Prothrombin"
+    "Age",
+    "Bilirubin",
+    "Cholesterol",
+    "Albumin",
+    "Copper",
+    "Alk_Phos",
+    "SGOT",
+    "Tryglicerides",
+    "Platelets",
+    "Prothrombin",
 ]
 
 
@@ -61,8 +69,14 @@ def validate_features(frame: pd.DataFrame) -> pd.DataFrame:
 
 def make_preprocessor() -> ColumnTransformer:
     """Encode categories in a fixed order and keep numeric values unchanged."""
-    return ColumnTransformer([
-        ("categories", OrdinalEncoder(categories=list(CATEGORIES.values())), list(CATEGORIES)),
-        ("stage", OrdinalEncoder(categories=[[1, 2, 3, 4]]), ["Stage"]),
-        ("numeric", "passthrough", NUMERIC_FEATURES)
-    ])
+    return ColumnTransformer(
+        [
+            (
+                "categories",
+                OrdinalEncoder(categories=list(CATEGORIES.values())),
+                list(CATEGORIES),
+            ),
+            ("stage", OrdinalEncoder(categories=[[1, 2, 3, 4]]), ["Stage"]),
+            ("numeric", "passthrough", NUMERIC_FEATURES),
+        ]
+    )
