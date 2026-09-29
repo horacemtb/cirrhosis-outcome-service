@@ -1,0 +1,19 @@
+{
+  "Drug": "D-penicillamine",
+  "Age": 21532,
+  "Sex": "M",
+  "Ascites": "N",
+  "Hepatomegaly": "N",
+  "Spiders": "N",
+  "Edema": "N",
+  "Bilirubin": 2.3,
+  "Cholesterol": 316,
+  "Albumin": 3.35,
+  "Copper": 172,
+  "Alk_Phos": 1601,
+  "SGOT": 179.8,
+  "Tryglicerides": 63,
+  "Platelets": 394,
+  "Prothrombin": 9.7,
+  "Stage": 3
+}

@@ -1,0 +1,30 @@
+[project]
+name = "cirrhosis-outcome-service"
+version = "0.1.0"
+description = "Random Forest training and an API for cirrhosis outcome prediction."
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "numpy==1.26.4",
+    "pandas==2.2.2",
+    "scikit-learn==1.5.1",
+    "imbalanced-learn==0.12.3",
+    "joblib==1.4.2",
+    "fastapi>=0.116.1,<1.0",
+    "pydantic>=2.8.2,<3.0",
+    "uvicorn>=0.35.0,<1.0",
+]
+
+[tool.poetry]
+packages = [{ include = "cirrhosis_service", from = "src" }]
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=7.4,<9.0"
+httpx = ">=0.27,<0.29"
+
+[build-system]
+requires = ["poetry-core>=2.0,<3.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+addopts = '--basetemp=.pytest_cache/tmp'
