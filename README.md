@@ -15,7 +15,8 @@ poetry install
 ```
 
 В Git сохраняются `pyproject.toml`, `poetry.lock` и `poetry.toml`.
-Окружение `.venv/`, данные и результаты обучения исключены из Git.
+Окружение `.venv/` и результаты обучения исключены из Git.
+Обучающие данные находятся в `data/train.csv`.
 
 ## Данные и обучение
 
@@ -36,12 +37,40 @@ poetry run uvicorn cirrhosis_service.api:app --host 127.0.0.1 --port 8000
 ```
 
 Откройте [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
-Для проверки `POST /predict` используйте пример запроса выше.
+Для проверки `POST /predict` используйте [пример запроса](examples/predict_request.json).
 `GET /health` проверяет доступность сервиса.
 
 Ответ содержит класс, статус, вероятность класса `D` и порог `0.35`.
 Неверный вход возвращает HTTP 422.
 Путь к модели можно изменить переменной `MODEL_PATH`; по умолчанию используется `artifacts/model.joblib`.
+
+## Docker
+
+Требуется Docker Desktop в режиме Linux containers.
+Из корня проекта соберите образ и запустите контейнер:
+
+```powershell
+docker build -t cirrhosis-outcome-service .
+docker run --rm --name cirrhosis-api -p 127.0.0.1:8000:8000 cirrhosis-outcome-service
+```
+
+При сборке устанавливаются зависимости из `poetry.lock` и обучается модель
+на `data/train.csv`. Модель и метрики сохраняются внутри образа;
+локальный каталог `artifacts/` не изменяется.
+При запуске контейнера повторное обучение не выполняется.
+После изменения кода, зависимостей или данных пересоберите образ.
+
+Откройте [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
+В другом терминале PowerShell, из корня проекта, проверьте запросы:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+$body = Get-Content examples/predict_request.json -Raw
+Invoke-RestMethod -Uri http://127.0.0.1:8000/predict -Method Post -ContentType "application/json" -Body $body
+```
+
+Ожидается `status: ok` и JSON с предсказанием.
+Остановка: `docker stop cirrhosis-api` из другого терминала.
 
 ## Предсказание без API
 
