@@ -97,3 +97,13 @@ poetry run pre-commit run --all-files
 
 Black форматирует код, Flake8 проверяет стиль и ошибки.
 После установки pre-commit проверки выполняются перед каждым коммитом.
+
+## CI
+
+[GitHub Actions](https://github.com/horacemtb/cirrhosis-outcome-service/actions)
+проверяет каждый push и pull request: конфигурацию Poetry и pre-commit,
+форматирование Black, Flake8, тесты, сборку Docker и запросы к API контейнера.
+
+Результаты доступны во вкладке **Actions**, процесс **CI**, задание **Checks**.
+Проверку можно запустить вручную кнопкой **Run workflow**.
+Автоматическое развёртывание на сервер не настроено.
