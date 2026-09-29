@@ -19,3 +19,4 @@ poetry.toml
 .pre-commit-config.yaml
 data/*
 !data/train.csv
+.pytest_tmp/
