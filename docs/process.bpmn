@@ -1,0 +1,322 @@
+<?xml version='1.0' encoding='utf-8'?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_Cirrhosis" targetNamespace="https://github.com/horacemtb/cirrhosis-outcome-service">
+  <bpmn:dataStore id="Store_Model" name="artifacts/model.joblib" isUnlimited="true" />
+  <bpmn:collaboration id="Collaboration_Service">
+    <bpmn:participant id="Pool_Training" name="Обучение" processRef="Process_Training" />
+    <bpmn:participant id="Pool_API" name="API · один запрос" processRef="Process_API" />
+  </bpmn:collaboration>
+  <bpmn:process id="Process_Training" isExecutable="false">
+    <bpmn:startEvent id="Train_Start" name="Запуск обучения">
+      <bpmn:outgoing>Train_Flow_1</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Train_Read" name="Прочитать CSV&#10;и проверить Status">
+      <bpmn:incoming>Train_Flow_1</bpmn:incoming>
+      <bpmn:outgoing>Train_Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Train_Prepare" name="Исключить CL, id, N_Days;&#10;проверить признаки">
+      <bpmn:incoming>Train_Flow_2</bpmn:incoming>
+      <bpmn:outgoing>Train_Flow_3</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Train_Split" name="Разделить 80/20&#10;stratify, seed 42">
+      <bpmn:incoming>Train_Flow_3</bpmn:incoming>
+      <bpmn:outgoing>Train_Flow_4</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Train_Fit" name="Кодирование,&#10;undersampling train,&#10;Random Forest">
+      <bpmn:incoming>Train_Flow_4</bpmn:incoming>
+      <bpmn:outgoing>Train_Flow_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Train_Evaluate" name="Оценить на test&#10;при пороге 0.35">
+      <bpmn:incoming>Train_Flow_5</bpmn:incoming>
+      <bpmn:outgoing>Train_Flow_6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="Train_Save" name="Сохранить модель&#10;и metrics.json">
+      <bpmn:incoming>Train_Flow_6</bpmn:incoming>
+      <bpmn:outgoing>Train_Flow_7</bpmn:outgoing>
+      <bpmn:ioSpecification>
+        <bpmn:dataOutput id="Output_Model" name="Обученный pipeline и порог" />
+        <bpmn:inputSet id="Save_InputSet" />
+        <bpmn:outputSet id="Save_OutputSet">
+          <bpmn:dataOutputRefs>Output_Model</bpmn:dataOutputRefs>
+        </bpmn:outputSet>
+      </bpmn:ioSpecification>
+      <bpmn:dataOutputAssociation id="Model_Save_Association">
+        <bpmn:sourceRef>Output_Model</bpmn:sourceRef>
+        <bpmn:targetRef>Model_Written</bpmn:targetRef>
+      </bpmn:dataOutputAssociation>
+    </bpmn:task>
+    <bpmn:endEvent id="Train_End" name="Готово">
+      <bpmn:incoming>Train_Flow_7</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="Train_Flow_1" sourceRef="Train_Start" targetRef="Train_Read" />
+    <bpmn:sequenceFlow id="Train_Flow_2" sourceRef="Train_Read" targetRef="Train_Prepare" />
+    <bpmn:sequenceFlow id="Train_Flow_3" sourceRef="Train_Prepare" targetRef="Train_Split" />
+    <bpmn:sequenceFlow id="Train_Flow_4" sourceRef="Train_Split" targetRef="Train_Fit" />
+    <bpmn:sequenceFlow id="Train_Flow_5" sourceRef="Train_Fit" targetRef="Train_Evaluate" />
+    <bpmn:sequenceFlow id="Train_Flow_6" sourceRef="Train_Evaluate" targetRef="Train_Save" />
+    <bpmn:sequenceFlow id="Train_Flow_7" sourceRef="Train_Save" targetRef="Train_End" />
+    <bpmn:dataStoreReference id="Model_Written" name="artifacts/model.joblib" dataStoreRef="Store_Model" />
+    <bpmn:textAnnotation id="Note_Docker">
+      <bpmn:text>Docker: обучение выполняется при сборке образа.
+Запуск контейнера не переобучает модель.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Note_Docker_Association" sourceRef="Train_Read" targetRef="Note_Docker" />
+    <bpmn:textAnnotation id="Note_Train_Error">
+      <bpmn:text>Ошибка чтения или проверки данных
+прерывает обучение.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Note_Train_Error_Association" sourceRef="Train_Prepare" targetRef="Note_Train_Error" />
+  </bpmn:process>
+  <bpmn:process id="Process_API" isExecutable="false">
+    <bpmn:startEvent id="API_Start" name="POST /predict">
+      <bpmn:outgoing>API_Flow_1</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="Predict_Request" />
+    </bpmn:startEvent>
+    <bpmn:task id="API_Validate" name="Проверить входные&#10;данные (Pydantic)">
+      <bpmn:incoming>API_Flow_1</bpmn:incoming>
+      <bpmn:outgoing>API_Flow_2</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:exclusiveGateway id="API_Valid" name="Данные корректны?">
+      <bpmn:incoming>API_Flow_2</bpmn:incoming>
+      <bpmn:outgoing>API_Flow_Yes</bpmn:outgoing>
+      <bpmn:outgoing>API_Flow_No</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="API_Predict" name="Кодировать признаки&#10;и вычислить probability_d">
+      <bpmn:incoming>API_Flow_Yes</bpmn:incoming>
+      <bpmn:outgoing>API_Flow_4</bpmn:outgoing>
+      <bpmn:ioSpecification>
+        <bpmn:dataInput id="Input_Model" name="Загруженный pipeline" />
+        <bpmn:inputSet id="Predict_InputSet">
+          <bpmn:dataInputRefs>Input_Model</bpmn:dataInputRefs>
+        </bpmn:inputSet>
+        <bpmn:outputSet id="Predict_OutputSet" />
+      </bpmn:ioSpecification>
+      <bpmn:dataInputAssociation id="Model_Read_Association">
+        <bpmn:sourceRef>Model_Read</bpmn:sourceRef>
+        <bpmn:targetRef>Input_Model</bpmn:targetRef>
+      </bpmn:dataInputAssociation>
+    </bpmn:task>
+    <bpmn:task id="API_Threshold" name="Применить порог 0.35&#10;и выбрать C или D">
+      <bpmn:incoming>API_Flow_4</bpmn:incoming>
+      <bpmn:outgoing>API_Flow_5</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="API_Response" name="Вернуть HTTP 200&#10;с предсказанием">
+      <bpmn:incoming>API_Flow_5</bpmn:incoming>
+      <bpmn:outgoing>API_Flow_6</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="API_End" name="Ответ отправлен">
+      <bpmn:incoming>API_Flow_6</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:task id="API_Reject" name="Вернуть HTTP 422&#10;с описанием ошибки">
+      <bpmn:incoming>API_Flow_No</bpmn:incoming>
+      <bpmn:outgoing>API_Flow_8</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:endEvent id="API_InvalidEnd" name="Запрос отклонён">
+      <bpmn:incoming>API_Flow_8</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:sequenceFlow id="API_Flow_1" sourceRef="API_Start" targetRef="API_Validate" />
+    <bpmn:sequenceFlow id="API_Flow_2" sourceRef="API_Validate" targetRef="API_Valid" />
+    <bpmn:sequenceFlow id="API_Flow_Yes" sourceRef="API_Valid" targetRef="API_Predict" name="Да" />
+    <bpmn:sequenceFlow id="API_Flow_4" sourceRef="API_Predict" targetRef="API_Threshold" />
+    <bpmn:sequenceFlow id="API_Flow_5" sourceRef="API_Threshold" targetRef="API_Response" />
+    <bpmn:sequenceFlow id="API_Flow_6" sourceRef="API_Response" targetRef="API_End" />
+    <bpmn:sequenceFlow id="API_Flow_No" sourceRef="API_Valid" targetRef="API_Reject" name="Нет" />
+    <bpmn:sequenceFlow id="API_Flow_8" sourceRef="API_Reject" targetRef="API_InvalidEnd" />
+    <bpmn:dataStoreReference id="Model_Read" name="artifacts/model.joblib" dataStoreRef="Store_Model" />
+    <bpmn:textAnnotation id="Note_Startup">
+      <bpmn:text>Тот же артефакт загружается один раз при старте API.
+Ошибка загрузки модели не позволяет запустить API.
+При запросах undersampling не выполняется.</bpmn:text>
+    </bpmn:textAnnotation>
+    <bpmn:association id="Note_Startup_Association" sourceRef="Model_Read" targetRef="Note_Startup" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_Service">
+    <bpmndi:BPMNPlane id="Plane_Service" bpmnElement="Collaboration_Service">
+      <bpmndi:BPMNShape id="Pool_Training_Shape" bpmnElement="Pool_Training" isHorizontal="true">
+        <dc:Bounds x="30" y="50" width="1410" height="330" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Pool_API_Shape" bpmnElement="Pool_API" isHorizontal="true">
+        <dc:Bounds x="30" y="415" width="1410" height="380" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Train_Start_Shape" bpmnElement="Train_Start">
+        <dc:Bounds x="95" y="147" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="73" y="190" width="85" height="40" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Train_Read_Shape" bpmnElement="Train_Read">
+        <dc:Bounds x="165" y="125" width="150" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Train_Prepare_Shape" bpmnElement="Train_Prepare">
+        <dc:Bounds x="350" y="125" width="170" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Train_Split_Shape" bpmnElement="Train_Split">
+        <dc:Bounds x="555" y="125" width="145" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Train_Fit_Shape" bpmnElement="Train_Fit">
+        <dc:Bounds x="735" y="125" width="175" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Train_Evaluate_Shape" bpmnElement="Train_Evaluate">
+        <dc:Bounds x="945" y="125" width="145" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Train_Save_Shape" bpmnElement="Train_Save">
+        <dc:Bounds x="1125" y="125" width="170" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Train_End_Shape" bpmnElement="Train_End">
+        <dc:Bounds x="1340" y="147" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1320" y="190" width="75" height="30" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Model_Written_Shape" bpmnElement="Model_Written">
+        <dc:Bounds x="1185" y="270" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1125" y="327" width="175" height="30" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Note_Docker_Shape" bpmnElement="Note_Docker">
+        <dc:Bounds x="165" y="270" width="390" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Note_Train_Error_Shape" bpmnElement="Note_Train_Error">
+        <dc:Bounds x="625" y="270" width="330" height="60" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="API_Start_Shape" bpmnElement="API_Start">
+        <dc:Bounds x="95" y="557" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="70" y="605" width="95" height="30" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="API_Validate_Shape" bpmnElement="API_Validate">
+        <dc:Bounds x="175" y="535" width="170" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="API_Valid_Shape" bpmnElement="API_Valid" isMarkerVisible="true">
+        <dc:Bounds x="390" y="550" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="340" y="502" width="150" height="30" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="API_Predict_Shape" bpmnElement="API_Predict">
+        <dc:Bounds x="505" y="535" width="200" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="API_Threshold_Shape" bpmnElement="API_Threshold">
+        <dc:Bounds x="750" y="535" width="175" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="API_Response_Shape" bpmnElement="API_Response">
+        <dc:Bounds x="970" y="535" width="180" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="API_End_Shape" bpmnElement="API_End">
+        <dc:Bounds x="1215" y="557" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="1185" y="605" width="100" height="35" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="API_Reject_Shape" bpmnElement="API_Reject">
+        <dc:Bounds x="505" y="665" width="200" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="API_InvalidEnd_Shape" bpmnElement="API_InvalidEnd">
+        <dc:Bounds x="750" y="687" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="720" y="733" width="100" height="35" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Model_Read_Shape" bpmnElement="Model_Read">
+        <dc:Bounds x="580" y="435" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="648" y="470" width="175" height="30" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Note_Startup_Shape" bpmnElement="Note_Startup">
+        <dc:Bounds x="880" y="435" width="490" height="70" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Train_Flow_1_Edge" bpmnElement="Train_Flow_1">
+        <di:waypoint x="131" y="165" />
+        <di:waypoint x="165" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Train_Flow_2_Edge" bpmnElement="Train_Flow_2">
+        <di:waypoint x="315" y="165" />
+        <di:waypoint x="350" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Train_Flow_3_Edge" bpmnElement="Train_Flow_3">
+        <di:waypoint x="520" y="165" />
+        <di:waypoint x="555" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Train_Flow_4_Edge" bpmnElement="Train_Flow_4">
+        <di:waypoint x="700" y="165" />
+        <di:waypoint x="735" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Train_Flow_5_Edge" bpmnElement="Train_Flow_5">
+        <di:waypoint x="910" y="165" />
+        <di:waypoint x="945" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Train_Flow_6_Edge" bpmnElement="Train_Flow_6">
+        <di:waypoint x="1090" y="165" />
+        <di:waypoint x="1125" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Train_Flow_7_Edge" bpmnElement="Train_Flow_7">
+        <di:waypoint x="1295" y="165" />
+        <di:waypoint x="1340" y="165" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Model_Save_Association_Edge" bpmnElement="Model_Save_Association">
+        <di:waypoint x="1210" y="205" />
+        <di:waypoint x="1210" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Note_Docker_Association_Edge" bpmnElement="Note_Docker_Association">
+        <di:waypoint x="240" y="205" />
+        <di:waypoint x="240" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Note_Train_Error_Association_Edge" bpmnElement="Note_Train_Error_Association">
+        <di:waypoint x="435" y="205" />
+        <di:waypoint x="435" y="240" />
+        <di:waypoint x="675" y="240" />
+        <di:waypoint x="675" y="270" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="API_Flow_1_Edge" bpmnElement="API_Flow_1">
+        <di:waypoint x="131" y="575" />
+        <di:waypoint x="175" y="575" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="API_Flow_2_Edge" bpmnElement="API_Flow_2">
+        <di:waypoint x="345" y="575" />
+        <di:waypoint x="390" y="575" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="API_Flow_Yes_Edge" bpmnElement="API_Flow_Yes">
+        <di:waypoint x="440" y="575" />
+        <di:waypoint x="505" y="575" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="452" y="549" width="30" height="20" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="API_Flow_4_Edge" bpmnElement="API_Flow_4">
+        <di:waypoint x="705" y="575" />
+        <di:waypoint x="750" y="575" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="API_Flow_5_Edge" bpmnElement="API_Flow_5">
+        <di:waypoint x="925" y="575" />
+        <di:waypoint x="970" y="575" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="API_Flow_6_Edge" bpmnElement="API_Flow_6">
+        <di:waypoint x="1150" y="575" />
+        <di:waypoint x="1215" y="575" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="API_Flow_No_Edge" bpmnElement="API_Flow_No">
+        <di:waypoint x="415" y="600" />
+        <di:waypoint x="415" y="705" />
+        <di:waypoint x="505" y="705" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="427" y="642" width="35" height="20" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="API_Flow_8_Edge" bpmnElement="API_Flow_8">
+        <di:waypoint x="705" y="705" />
+        <di:waypoint x="750" y="705" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Model_Read_Association_Edge" bpmnElement="Model_Read_Association">
+        <di:waypoint x="605" y="485" />
+        <di:waypoint x="605" y="535" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Note_Startup_Association_Edge" bpmnElement="Note_Startup_Association">
+        <di:waypoint x="630" y="455" />
+        <di:waypoint x="870" y="455" />
+        <di:waypoint x="880" y="455" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
