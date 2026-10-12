@@ -30,6 +30,38 @@ poetry run python -m cirrhosis_service.train --data data/train.csv --output arti
 
 Модель обучается на 80% данных, остальные 20% используются для оценки. Результаты: `artifacts/model.joblib` и `artifacts/metrics.json`. Повторный запуск перезаписывает эти файлы.
 
+## Подбор параметров с Optuna
+
+Подбор запускается отдельной командой и не выполняется при обычном обучении.
+Установите дополнительные зависимости и запустите поиск:
+
+```powershell
+poetry install --with tuning
+poetry run python -m cirrhosis_service.tune --data data/train.csv --trials 30 --folds 5 --output artifacts/tuning
+```
+
+Optuna максимизирует recall класса `D` при пороге 0.35 на кросс-валидации
+внутри обучающих 80% данных. Тестовые 20% в подборе не участвуют.
+Результаты: `best_params.json` с параметрами и `tuning.json` с оценкой поиска.
+Первые параметры в поиске — текущая конфигурация по умолчанию.
+
+Обучите модель с выбранными параметрами:
+
+```powershell
+poetry run python -m cirrhosis_service.train --data data/train.csv --params artifacts/tuning/best_params.json --output artifacts/tuned
+```
+
+Эта команда сохраняет модель и тестовые метрики в `artifacts/tuned/`.
+Сравните precision, recall и F1 с исходной моделью: рост recall может сопровождаться
+ростом числа ложных срабатываний. Для запуска API с новой моделью задайте путь:
+
+```powershell
+$env:MODEL_PATH = "artifacts/tuned/model.joblib"
+poetry run uvicorn cirrhosis_service.api:app --host 127.0.0.1 --port 8000
+```
+
+Обычное обучение без `--params` и сборка Docker используют параметры по умолчанию.
+
 ## Запуск API
 
 После обучения запустите сервер:
@@ -87,6 +119,7 @@ poetry run pytest -q
 ```
 
 Тесты не требуют обучающего CSV или готовой модели.
+Тесты Optuna запускаются после установки группы `tuning`; без неё они пропускаются.
 
 ## Проверка качества кода
 

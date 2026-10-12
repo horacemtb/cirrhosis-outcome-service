@@ -17,6 +17,15 @@ from cirrhosis_service.preprocessing import make_preprocessor, validate_features
 
 RANDOM_STATE = 42
 THRESHOLD = 0.35
+DEFAULT_RF_PARAMS = {
+    "n_estimators": 473,
+    "max_depth": 20,
+    "min_samples_split": 7,
+    "min_samples_leaf": 1,
+    "max_features": "sqrt",
+    "class_weight": "balanced_subsample",
+    "max_samples": 0.6095011330566877,
+}
 
 
 def load_training_data(path: str | Path) -> tuple[pd.DataFrame, pd.Series]:
@@ -31,16 +40,33 @@ def load_training_data(path: str | Path) -> tuple[pd.DataFrame, pd.Series]:
     return validate_features(features), target
 
 
-def make_pipeline() -> Pipeline:
+def split_training_data(features: pd.DataFrame, target: pd.Series) -> tuple:
+    """Keep the same held-out test set for training and tuning."""
+    split = train_test_split(
+        features, target, test_size=0.2, stratify=target, random_state=RANDOM_STATE
+    )
+    _, _, y_train, y_test = split
+
+    if set(y_train) != {0, 1} or set(y_test) != {0, 1}:
+        raise ValueError("Both train and test must contain C and D.")
+
+    return split
+
+
+def make_pipeline(params: dict | None = None) -> Pipeline:
+    forest_params = DEFAULT_RF_PARAMS.copy()
+
+    if params is not None:
+        if not isinstance(params, dict):
+            raise ValueError("Model parameters must be a JSON object.")
+        unknown = params.keys() - DEFAULT_RF_PARAMS.keys()
+        if unknown:
+            raise ValueError(f"Unknown forest parameters: {', '.join(sorted(unknown))}")
+        forest_params.update(params)
+
     forest = RandomForestClassifier(
-        n_estimators=473,
-        max_depth=20,
-        min_samples_split=7,
-        min_samples_leaf=1,
-        max_features="sqrt",
-        class_weight="balanced_subsample",
+        **forest_params,
         bootstrap=True,
-        max_samples=0.6095011330566877,
         random_state=RANDOM_STATE,
         n_jobs=-1,
     )
@@ -54,19 +80,16 @@ def make_pipeline() -> Pipeline:
     )
 
 
-def train(data_path: str | Path, output_dir: str | Path) -> dict:
+def train(
+    data_path: str | Path, output_dir: str | Path, params: dict | None = None
+) -> dict:
     features, target = load_training_data(data_path)
 
-    x_train, x_test, y_train, y_test = train_test_split(
-        features, target, test_size=0.2, stratify=target, random_state=RANDOM_STATE
-    )
-
-    if set(y_train) != {0, 1} or set(y_test) != {0, 1}:
-        raise ValueError("Both train and test must contain C and D.")
+    x_train, x_test, y_train, y_test = split_training_data(features, target)
 
     logging.info("Training on %d rows; testing on %d.", len(y_train), len(y_test))
 
-    pipeline = make_pipeline()
+    pipeline = make_pipeline(params)
     pipeline.fit(x_train, y_train)
 
     probabilities = pipeline.predict_proba(x_test)[:, 1]
@@ -102,12 +125,16 @@ def main():
     parser = argparse.ArgumentParser(description="Train the cirrhosis outcome model.")
     parser.add_argument("--data", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=Path("artifacts"))
+    parser.add_argument("--params", type=Path, help="JSON file with forest parameters.")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     try:
-        metrics = train(args.data, args.output)
+        params = (
+            json.loads(args.params.read_text(encoding="utf-8")) if args.params else None
+        )
+        metrics = train(args.data, args.output, params)
     except (OSError, ValueError, KeyError) as error:
         parser.exit(1, f"Training failed: {error}\n")
 
