@@ -27,7 +27,7 @@ jobs:
       - name: Install project dependencies
         run: |
           poetry check --lock
-          poetry install --with dev --no-interaction
+          poetry install --with dev,tuning --no-interaction
 
       - name: Check formatting
         run: poetry run black --check src tests
