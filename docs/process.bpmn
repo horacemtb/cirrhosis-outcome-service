@@ -67,7 +67,7 @@
     <bpmn:association id="Note_Train_Error_Association" sourceRef="Train_Prepare" targetRef="Note_Train_Error" />
   </bpmn:process>
   <bpmn:process id="Process_API" isExecutable="false">
-    <bpmn:startEvent id="API_Start" name="POST /predict">
+    <bpmn:startEvent id="API_Start" name="POST /predict&#10;или /explain">
       <bpmn:outgoing>API_Flow_1</bpmn:outgoing>
       <bpmn:messageEventDefinition id="Predict_Request" />
     </bpmn:startEvent>
@@ -95,12 +95,22 @@
         <bpmn:targetRef>Input_Model</bpmn:targetRef>
       </bpmn:dataInputAssociation>
     </bpmn:task>
-    <bpmn:task id="API_Threshold" name="Применить порог 0.35&#10;и выбрать C или D">
+    <bpmn:task id="API_Threshold" name="Применить порог модели&#10;и выбрать C или D">
       <bpmn:incoming>API_Flow_4</bpmn:incoming>
       <bpmn:outgoing>API_Flow_5</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:task id="API_Response" name="Вернуть HTTP 200&#10;с предсказанием">
+    <bpmn:exclusiveGateway id="API_ExplainRequested" name="Запрошен&#10;/explain?" default="API_Flow_PredictOnly">
       <bpmn:incoming>API_Flow_5</bpmn:incoming>
+      <bpmn:outgoing>API_Flow_Explain</bpmn:outgoing>
+      <bpmn:outgoing>API_Flow_PredictOnly</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:task id="API_Explain" name="Рассчитать SHAP:&#10;базовое значение и вклад&#10;каждого признака в оценку D">
+      <bpmn:incoming>API_Flow_Explain</bpmn:incoming>
+      <bpmn:outgoing>API_Flow_Explained</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:task id="API_Response" name="Вернуть HTTP 200&#10;/predict — прогноз&#10;/explain — прогноз и SHAP">
+      <bpmn:incoming>API_Flow_PredictOnly</bpmn:incoming>
+      <bpmn:incoming>API_Flow_Explained</bpmn:incoming>
       <bpmn:outgoing>API_Flow_6</bpmn:outgoing>
     </bpmn:task>
     <bpmn:endEvent id="API_End" name="Ответ отправлен">
@@ -117,14 +127,18 @@
     <bpmn:sequenceFlow id="API_Flow_2" sourceRef="API_Validate" targetRef="API_Valid" />
     <bpmn:sequenceFlow id="API_Flow_Yes" sourceRef="API_Valid" targetRef="API_Predict" name="Да" />
     <bpmn:sequenceFlow id="API_Flow_4" sourceRef="API_Predict" targetRef="API_Threshold" />
-    <bpmn:sequenceFlow id="API_Flow_5" sourceRef="API_Threshold" targetRef="API_Response" />
+    <bpmn:sequenceFlow id="API_Flow_5" sourceRef="API_Threshold" targetRef="API_ExplainRequested" />
     <bpmn:sequenceFlow id="API_Flow_6" sourceRef="API_Response" targetRef="API_End" />
     <bpmn:sequenceFlow id="API_Flow_No" sourceRef="API_Valid" targetRef="API_Reject" name="Нет" />
     <bpmn:sequenceFlow id="API_Flow_8" sourceRef="API_Reject" targetRef="API_InvalidEnd" />
+    <bpmn:sequenceFlow id="API_Flow_Explain" sourceRef="API_ExplainRequested" targetRef="API_Explain" name="Да" />
+    <bpmn:sequenceFlow id="API_Flow_PredictOnly" sourceRef="API_ExplainRequested" targetRef="API_Response" name="Нет" />
+    <bpmn:sequenceFlow id="API_Flow_Explained" sourceRef="API_Explain" targetRef="API_Response" />
     <bpmn:dataStoreReference id="Model_Read" name="artifacts/model.joblib" dataStoreRef="Store_Model" />
     <bpmn:textAnnotation id="Note_Startup">
-      <bpmn:text>Тот же артефакт загружается один раз при старте API.
-Ошибка загрузки модели не позволяет запустить API.
+      <bpmn:text>Модель и TreeExplainer создаются один раз при старте API.
+Оба метода API используют один артефакт (MODEL_PATH).
+Ошибка загрузки не позволяет запустить API.
 При запросах undersampling не выполняется.</bpmn:text>
     </bpmn:textAnnotation>
     <bpmn:association id="Note_Startup_Association" sourceRef="Model_Read" targetRef="Note_Startup" />
@@ -135,7 +149,7 @@
         <dc:Bounds x="30" y="50" width="1410" height="330" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Pool_API_Shape" bpmnElement="Pool_API" isHorizontal="true">
-        <dc:Bounds x="30" y="415" width="1410" height="380" />
+        <dc:Bounds x="30" y="415" width="1410" height="400" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Train_Start_Shape" bpmnElement="Train_Start">
         <dc:Bounds x="95" y="147" width="36" height="36" />
@@ -182,50 +196,50 @@
       <bpmndi:BPMNShape id="API_Start_Shape" bpmnElement="API_Start">
         <dc:Bounds x="95" y="557" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="70" y="605" width="95" height="30" />
+          <dc:Bounds x="55" y="605" width="120" height="45" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="API_Validate_Shape" bpmnElement="API_Validate">
-        <dc:Bounds x="175" y="535" width="170" height="80" />
+        <dc:Bounds x="165" y="535" width="150" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="API_Valid_Shape" bpmnElement="API_Valid" isMarkerVisible="true">
-        <dc:Bounds x="390" y="550" width="50" height="50" />
+        <dc:Bounds x="350" y="550" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="340" y="502" width="150" height="30" />
+          <dc:Bounds x="300" y="502" width="150" height="30" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="API_Predict_Shape" bpmnElement="API_Predict">
-        <dc:Bounds x="505" y="535" width="200" height="80" />
+        <dc:Bounds x="450" y="535" width="185" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="API_Threshold_Shape" bpmnElement="API_Threshold">
-        <dc:Bounds x="750" y="535" width="175" height="80" />
+        <dc:Bounds x="680" y="535" width="155" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="API_Response_Shape" bpmnElement="API_Response">
-        <dc:Bounds x="970" y="535" width="180" height="80" />
+        <dc:Bounds x="1145" y="535" width="180" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="API_End_Shape" bpmnElement="API_End">
-        <dc:Bounds x="1215" y="557" width="36" height="36" />
+        <dc:Bounds x="1370" y="557" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="1185" y="605" width="100" height="35" />
+          <dc:Bounds x="1330" y="605" width="105" height="35" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="API_Reject_Shape" bpmnElement="API_Reject">
-        <dc:Bounds x="505" y="665" width="200" height="80" />
+        <dc:Bounds x="450" y="665" width="185" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="API_InvalidEnd_Shape" bpmnElement="API_InvalidEnd">
-        <dc:Bounds x="750" y="687" width="36" height="36" />
+        <dc:Bounds x="680" y="687" width="36" height="36" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="720" y="733" width="100" height="35" />
+          <dc:Bounds x="650" y="733" width="100" height="35" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Model_Read_Shape" bpmnElement="Model_Read">
-        <dc:Bounds x="580" y="435" width="50" height="50" />
+        <dc:Bounds x="518" y="435" width="50" height="50" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="648" y="470" width="175" height="30" />
+          <dc:Bounds x="580" y="470" width="165" height="30" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Note_Startup_Shape" bpmnElement="Note_Startup">
-        <dc:Bounds x="880" y="435" width="490" height="70" />
+        <dc:Bounds x="760" y="430" width="610" height="65" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Train_Flow_1_Edge" bpmnElement="Train_Flow_1">
         <di:waypoint x="131" y="165" />
@@ -269,53 +283,80 @@
         <di:waypoint x="675" y="240" />
         <di:waypoint x="675" y="270" />
       </bpmndi:BPMNEdge>
+      <bpmndi:BPMNShape id="API_ExplainRequested_Shape" bpmnElement="API_ExplainRequested" isMarkerVisible="true">
+        <dc:Bounds x="885" y="550" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="850" y="502" width="120" height="30" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="API_Explain_Shape" bpmnElement="API_Explain">
+        <dc:Bounds x="850" y="665" width="220" height="80" />
+      </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="API_Flow_1_Edge" bpmnElement="API_Flow_1">
         <di:waypoint x="131" y="575" />
-        <di:waypoint x="175" y="575" />
+        <di:waypoint x="165" y="575" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="API_Flow_2_Edge" bpmnElement="API_Flow_2">
-        <di:waypoint x="345" y="575" />
-        <di:waypoint x="390" y="575" />
+        <di:waypoint x="315" y="575" />
+        <di:waypoint x="350" y="575" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="API_Flow_Yes_Edge" bpmnElement="API_Flow_Yes">
-        <di:waypoint x="440" y="575" />
-        <di:waypoint x="505" y="575" />
+        <di:waypoint x="400" y="575" />
+        <di:waypoint x="450" y="575" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="452" y="549" width="30" height="20" />
+          <dc:Bounds x="408" y="549" width="30" height="20" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="API_Flow_4_Edge" bpmnElement="API_Flow_4">
-        <di:waypoint x="705" y="575" />
-        <di:waypoint x="750" y="575" />
+        <di:waypoint x="635" y="575" />
+        <di:waypoint x="680" y="575" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="API_Flow_5_Edge" bpmnElement="API_Flow_5">
-        <di:waypoint x="925" y="575" />
-        <di:waypoint x="970" y="575" />
+        <di:waypoint x="835" y="575" />
+        <di:waypoint x="885" y="575" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="API_Flow_PredictOnly_Edge" bpmnElement="API_Flow_PredictOnly">
+        <di:waypoint x="935" y="575" />
+        <di:waypoint x="1145" y="575" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="985" y="548" width="35" height="20" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="API_Flow_Explain_Edge" bpmnElement="API_Flow_Explain">
+        <di:waypoint x="910" y="600" />
+        <di:waypoint x="910" y="665" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="920" y="625" width="30" height="20" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="API_Flow_Explained_Edge" bpmnElement="API_Flow_Explained">
+        <di:waypoint x="1070" y="705" />
+        <di:waypoint x="1235" y="705" />
+        <di:waypoint x="1235" y="615" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="API_Flow_6_Edge" bpmnElement="API_Flow_6">
-        <di:waypoint x="1150" y="575" />
-        <di:waypoint x="1215" y="575" />
+        <di:waypoint x="1325" y="575" />
+        <di:waypoint x="1370" y="575" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="API_Flow_No_Edge" bpmnElement="API_Flow_No">
-        <di:waypoint x="415" y="600" />
-        <di:waypoint x="415" y="705" />
-        <di:waypoint x="505" y="705" />
+        <di:waypoint x="375" y="600" />
+        <di:waypoint x="375" y="705" />
+        <di:waypoint x="450" y="705" />
         <bpmndi:BPMNLabel>
-          <dc:Bounds x="427" y="642" width="35" height="20" />
+          <dc:Bounds x="385" y="640" width="35" height="20" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="API_Flow_8_Edge" bpmnElement="API_Flow_8">
-        <di:waypoint x="705" y="705" />
-        <di:waypoint x="750" y="705" />
+        <di:waypoint x="635" y="705" />
+        <di:waypoint x="680" y="705" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Model_Read_Association_Edge" bpmnElement="Model_Read_Association">
-        <di:waypoint x="605" y="485" />
-        <di:waypoint x="605" y="535" />
+        <di:waypoint x="543" y="485" />
+        <di:waypoint x="543" y="535" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="Note_Startup_Association_Edge" bpmnElement="Note_Startup_Association">
-        <di:waypoint x="630" y="455" />
-        <di:waypoint x="870" y="455" />
-        <di:waypoint x="880" y="455" />
+        <di:waypoint x="568" y="455" />
+        <di:waypoint x="760" y="455" />
       </bpmndi:BPMNEdge>
     </bpmndi:BPMNPlane>
   </bpmndi:BPMNDiagram>
