@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
 from imblearn.pipeline import Pipeline
 from imblearn.under_sampling import RandomUnderSampler
@@ -17,6 +18,7 @@ from cirrhosis_service.preprocessing import make_preprocessor, validate_features
 
 RANDOM_STATE = 42
 THRESHOLD = 0.35
+BOOTSTRAP_RESAMPLES = 2000
 DEFAULT_RF_PARAMS = {
     "n_estimators": 473,
     "max_depth": 20,
@@ -80,6 +82,34 @@ def make_pipeline(params: dict | None = None) -> Pipeline:
     )
 
 
+def bootstrap_intervals(target, predictions) -> dict:
+    """Estimate 95% metric intervals by resampling fixed test predictions."""
+    target = np.asarray(target)
+    predictions = np.asarray(predictions)
+    rng = np.random.default_rng(RANDOM_STATE)
+    scores = []
+
+    for _ in range(BOOTSTRAP_RESAMPLES):
+        indices = rng.integers(0, len(target), size=len(target))
+        actual_positive = target[indices] == 1
+        predicted_positive = predictions[indices] == 1
+        true_positive = np.count_nonzero(actual_positive & predicted_positive)
+        actual_count = np.count_nonzero(actual_positive)
+        predicted_count = np.count_nonzero(predicted_positive)
+
+        precision = true_positive / predicted_count if predicted_count else 0.0
+        recall = true_positive / actual_count if actual_count else 0.0
+        total_positive = actual_count + predicted_count
+        f1 = 2 * true_positive / total_positive if total_positive else 0.0
+        scores.append((precision, recall, f1))
+
+    lower, upper = np.percentile(scores, [2.5, 97.5], axis=0)
+    return {
+        name: [float(low), float(high)]
+        for name, low, high in zip(("precision", "recall", "f1"), lower, upper)
+    }
+
+
 def train(
     data_path: str | Path, output_dir: str | Path, params: dict | None = None
 ) -> dict:
@@ -107,6 +137,13 @@ def train(
         "test_rows": len(y_test),
         "random_state": RANDOM_STATE,
         "threshold": THRESHOLD,
+        "confidence_intervals": bootstrap_intervals(y_test, predictions),
+        "bootstrap": {
+            "method": "percentile",
+            "confidence_level": 0.95,
+            "n_resamples": BOOTSTRAP_RESAMPLES,
+            "random_state": RANDOM_STATE,
+        },
     }
 
     output_dir = Path(output_dir)
